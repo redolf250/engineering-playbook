@@ -1,0 +1,46 @@
+name: Deploy to Test (Dev Branch)
+
+on:
+  pull_request:
+    types: [ closed ]
+    branches:
+      - development
+
+jobs:
+  deploy:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Test Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.TEST_SERVER_IP }}
+          username: ${{ secrets.TEST_SERVER_USER }}
+          key: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            cd /root/apps/trade-sphere
+
+            echo "Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/development
+
+            echo "Loading Node 20..."
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+            nvm use 20
+
+            echo "Installing deps..."
+            npm ci
+
+            echo "Building..."
+            npm run build
+
+            echo "Restarting PM2..."
+            pm2 restart trade-sphere || pm2 start dist/app.js --name trade-sphere --update-env
+
+            pm2 save
+
+            echo "Deployment complete"

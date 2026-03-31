@@ -1,0 +1,42 @@
+name: Deploy Environments
+
+on:
+ pull_request:
+   types: [ closed ]
+
+jobs:
+ deploy-test:
+   if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'development'
+   runs-on: ubuntu-latest
+
+   steps:
+     - name: Deploy to TEST server
+       uses: appleboy/ssh-action@v1.0.3
+       with:
+         host: ${{ secrets.TEST_SERVER_IP }}
+         username: ${{ secrets.TEST_SERVER_USER }}
+         key: ${{ secrets.TEST_SSH_KEY }}
+         script: |
+           cd /root/apps/trade-sphere
+           git fetch origin
+           git reset --hard origin/development
+           npm ci --omit=dev
+           pm2 restart trade-sphere || pm2 start npm --name "trade-sphere" -- start
+
+ deploy-prod:
+   if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+   runs-on: ubuntu-latest
+
+   steps:
+     - name: Deploy to PROD server
+       uses: appleboy/ssh-action@v1.0.3
+       with:
+         host: ${{ secrets.PROD_SERVER_IP }}
+         username: ${{ secrets.PROD_SERVER_USER }}
+         key: ${{ secrets.PROD_SSH_KEY }}
+         script: |
+           cd /root/apps/trade-sphere
+           git fetch origin
+           git reset --hard origin/main
+           npm ci --omit=dev
+           pm2 restart trade-sphere || pm2 start npm --name "trade-sphere" -- start
